@@ -10,7 +10,7 @@ import platform
 class ScrcpyController:
     def __init__(self, master):
         self.master = master
-        master.title("Scrcpy Controller")
+        master.title("scrquest")
         master.geometry("400x300")
         # Проверка наличия необходимых файлов
         self.check_files()
