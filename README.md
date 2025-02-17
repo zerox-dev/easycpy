@@ -23,3 +23,8 @@ Stream video from Oculus to PC!
 
 Both eyes are broadcast.
 When the pass-through camera is enabled, there may be artifacts in the broadcast.
+
+-----
+
+# Maded with scrcpy
+https://github.com/Genymobile/scrcpy
