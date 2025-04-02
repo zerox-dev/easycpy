@@ -19,8 +19,8 @@ Stream video from Oculus or other mobile device to PC!
 
 # Bugs
 
-Both eyes are broadcast. (Oculus Quest)
-When the pass-through camera is enabled, there may be artifacts in the broadcast. (Oculus Quest)
+1. Both eyes are broadcast. (Oculus Quest)
+2. When the pass-through camera is enabled, there may be artifacts in the broadcast. (Oculus Quest)
 
 -----
 
