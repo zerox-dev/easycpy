@@ -6,43 +6,29 @@ import time
 import os
 import platform
 
-
 class ScrcpyController:
     def __init__(self, master):
         self.master = master
-        master.title("scrquest")
-        master.geometry("400x300")
-        # Проверка наличия необходимых файлов
-        self.check_files()
+        master.title("easycpy")
+        master.geometry("400x350")  # Уменьшил высоту окна, так как убрали выбор языка
+        
         # Создание элементов интерфейса
         self.create_components()
+        
         # Инициализация данных устройства
         self.device_info = None
         self.is_connected = False
-
-    def check_files(self):
-        """Проверка наличия ADB и scrcpy"""
-        base_dir = os.path.join(os.path.dirname(__file__), 'scrcpy')
-        adb_path = os.path.join(base_dir, 'adb.exe' if platform.system() == 'Windows' else 'adb')
-        scrcpy_path = os.path.join(base_dir, 'scrcpy.exe' if platform.system() == 'Windows' else 'scrcpy')
-        if not os.path.exists(adb_path):
-            messagebox.showerror("Error", "ADB not found in scrcpy directory.")
-            self.master.destroy()
-        if not os.path.exists(scrcpy_path):
-            messagebox.showerror("Error", "Scrcpy not found in scrcpy directory.")
-            self.master.destroy()
 
     def create_components(self):
         """Создание графических элементов интерфейса"""
         self.frame = ttk.Frame(self.master, padding=20)
         self.frame.pack()
 
-        self.ip_label = ttk.Label(self.frame, text="Device IP (Leave empty for auto-detect):")
+        # Основные элементы интерфейса
+        self.ip_label = ttk.Label(self.frame, text="Device IP (Working only on Quest):")
         self.ip_label.pack(pady=5)
-
         self.ip_entry = ttk.Entry(self.frame, width=25)
         self.ip_entry.pack(pady=5)
-
         self.check_btn = ttk.Button(
             self.frame,
             text="Check Device",
@@ -50,17 +36,27 @@ class ScrcpyController:
             width=25
         )
         self.check_btn.pack(pady=10)
-
         self.stream_btn = ttk.Button(
             self.frame,
-            text="Show Screen",
+            text="Start Stream!",
             command=self.start_scrcpy,
-            width=25,
-            state="disabled"  # Button is disabled until connection
+            width=30,
+            state="disabled"
         )
         self.stream_btn.pack(pady=10)
 
-        self.status_label = ttk.Label(self.frame, text="", foreground="gray")
+        # Добавление тумблера "Stream one eye"
+        self.one_eye_stream_var = tk.BooleanVar(value=False)
+        self.one_eye_stream_toggle = ttk.Checkbutton(
+            self.frame,
+            text="Stream one eye",
+            variable=self.one_eye_stream_var,
+            onvalue=True,
+            offvalue=False
+        )
+        self.one_eye_stream_toggle.pack(pady=5)
+
+        self.status_label = ttk.Label(self.frame, text="Not connected", foreground="red")
         self.status_label.pack(pady=5)
 
     def get_adb_path(self):
@@ -68,37 +64,38 @@ class ScrcpyController:
         return os.path.join(os.path.dirname(__file__), 'scrcpy', 'adb.exe' if platform.system() == 'Windows' else 'adb')
 
     def start_device_check(self):
-        """Проверка подключения в отдельном потоке"""
+        """Запуск проверки подключения в отдельном потоке"""
         threading.Thread(target=self.check_device_connection, daemon=True).start()
 
     def check_device_connection(self):
-        """Проверка подключения устройства"""
+        """Проверка подключения устройства с таймером"""
         adb = self.get_adb_path()
         try:
-            self.status_label.config(text="Checking device...", foreground="orange")
+            self.status_label.config(text="Fixies is looking for your device...", foreground="orange")
             subprocess.run([adb, 'kill-server'], check=True)
             subprocess.run([adb, 'start-server'], check=True)
-
             manual_ip = self.ip_entry.get().strip()
             if manual_ip and not self.validate_ip(manual_ip):
-                self.show_error("Invalid IP address format.")
+                self.show_error("IP is not valid.")
                 return
-
             device_ip = manual_ip if manual_ip else self.auto_detect_ip(adb)
             if not device_ip:
-                self.show_error("Device not found. Check if ADB is properly connected.")
+                self.show_error("Fixies said that device is not found. Check if ADB is properly connected.")
                 return
-
             subprocess.run([adb, 'tcpip', '5555'], check=True, timeout=5)
             connect_result = subprocess.run([adb, 'connect', f'{device_ip}:5555'], capture_output=True, text=True)
 
+            # Запуск таймера на 20 секунд
             start_time = time.time()
+            remaining_time = 20
             while time.time() - start_time < 20:
                 devices = subprocess.run([adb, 'devices', '-l'], capture_output=True, text=True).stdout
                 if self.is_device_connected(devices):
                     self.device_info = self.parse_device_info(devices, device_ip)
                     self.update_connection_status(True)
                     return
+                remaining_time = max(0, 20 - int(time.time() - start_time))
+                self.status_label.config(text=f"Waiting for ADB confirmation... {remaining_time}s", foreground="orange")
                 time.sleep(1)
 
             self.update_connection_status(False)
@@ -182,15 +179,18 @@ class ScrcpyController:
         try:
             scrcpy_path = os.path.join(os.path.dirname(__file__), 'scrcpy',
                                        'scrcpy.exe' if platform.system() == 'Windows' else 'scrcpy')
-            subprocess.Popen([scrcpy_path, '--serial', self.device_info['id'], '--max-size', '1920', '--window-title',
-                              'Quest Stream'])
+            # Базовые параметры
+            base_params = [scrcpy_path, '--serial', self.device_info['id'], '--max-size', '1920', '--window-title', 'Quest Stream']
+            # Проверка состояния тумблера
+            if self.one_eye_stream_var.get():
+                base_params.extend(['--crop', '1730:974:1934:450', '--max-fps', '60'])
+            subprocess.Popen(base_params)
         except Exception as e:
             self.show_error(f"Failed to start scrcpy: {str(e)}")
 
     def show_error(self, message):
         """Показать сообщение об ошибке"""
         messagebox.showerror("Error", message)
-
 
 if __name__ == "__main__":
     root = tk.Tk()
